@@ -8,19 +8,8 @@ using namespace std;
 
 void create_prototxt(){
   
-  unordered_map<string, string> config;
-  fstream fin;
-  fin.open("sarah_setting.config", std::ios::in);
-  string line;
-  while (getline(fin, line)){
-    istringstream iss(line);
-    string key;
-    string value;
-    if (iss >> key >> value){
-      config.insert(std::pair<std::string, std::string>(key, value));
-    }
-  }
-  ofstream out(config["TRAIN_PROTOTXT_PATH"]);
+  unordered_map<string, string> config = get_config();
+  ofstream out("/data/training/sarah/" + config["TRAIN_PROTOTXT_NAME"]);
   const char* model_char1 = R"V0G0N(
 name: "fc"
 layer{
@@ -28,9 +17,6 @@ layer{
   type: "Data"
   top: "data"
   top: "label" 
-  include{
-    phase: TRAIN
-  }
   data_param{
     source: )V0G0N";
   string model_str1(model_char1);
@@ -93,9 +79,9 @@ layer{
   out.close();
 
 
-  ofstream out2(config["SOLVER_PROTOTXT"]);
-  string model_char2 = "net: \"" + config["ROOT_DIR"] + config["TRAIN_PROTOTXT_PATH"] + "\"\n";
-  const char* model_char3 = R"V0G0N(
+  ofstream out2(config.at("ROOT_DIR") + config.at("SOLVER_PROTOTXT_NAME"));
+  string model_char2 = "net: \"" + config.at("ROOT_DIR") + config.at("TRAIN_PROTOTXT_NAME") + "\"\n";
+  char* model_char3 = R"V0G0N(
 # 100775 // 100
 # test_iter: 1007
 # Carry out testing every 500 training iterations.
@@ -110,14 +96,78 @@ lr_policy: "fixed"
 # Display every 100 iterations
 display: 2000
 # snapshot intermediate results
-snapshot: 10000
+snapshot: )V0G0N";
+  //out2 << model_char2 << model_char3 << config.at("MAX_ITER") << "\n";
+  out2 << model_char2 << model_char3 << config.at("CKPT_ITER") << "\n";
+  const char* model_char4 = R"V0G0N(
 # solver mode: CPU or GPU
 type: "Adam"
 solver_mode: CPU
 )V0G0N";
-  string model_char4 = "snapshot_prefix: \"" + config["ROOT_DIR"] + config["CKPT_FOLDER"] + config["CKPT_PREFIX"] + "\"\n";
-  string model_char5 = "max_iter: " + config["MAX_ITER"];
-  out2 << model_char2 << model_char3 << model_char4 << model_char5;
+  string model_char5 = "snapshot_prefix: \"" + config.at("ROOT_DIR") + config.at("CKPT_DIR") + config["CKPT_PREFIX"] + "\"\n";
+  string model_char6 = "max_iter: " + config["MAX_ITER"];
+  out2 << model_char4 << model_char5 << model_char6;
   out2.close();
 
+
+  ofstream out3(config.at("ROOT_DIR") + "sarah_fc_deploy.prototxt");
+  char* model_char7 = R"V0G0N(
+name: "fc"
+layer{
+  name: "data"
+  type: "Input"
+  top: "data"
+  input_param{
+    shape: {dim: 1 dim: 1 dim: 1 dim: 120}
+  }  
+}
+layer{
+  name: "fc1"
+  type: "InnerProduct"
+  bottom: "data"
+  top: "fc1"
+  inner_product_param{
+    num_output: 84
+    weight_filler{
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler{
+      type: "constant"
+      value: 0.01
+    }
+  }
+}
+layer{
+  name: "relu1"
+  type: "ReLU"
+  bottom: "fc1"
+  top: "fc1"
+}
+layer{
+  name: "out"
+  type: "InnerProduct"
+  bottom: "fc1"
+  top: "out"
+  inner_product_param{
+    num_output: 1
+    weight_filler{
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler{
+      type: "constant"
+      value: 0.01
+    }
+  }
+}
+layer{
+  name: "prob"
+  type: "Sigmoid"
+  bottom: "out"
+  top: "prob"
+}
+)V0G0N";
+  out3 << model_char7;
+  out3.close();
 }

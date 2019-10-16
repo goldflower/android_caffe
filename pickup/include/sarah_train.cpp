@@ -32,8 +32,6 @@ static const string s_strChkPostfix = ".solverstate"
 ;
 
 static void getSolverStates(vector<string> & vecFiles) {
-    //const string strChkPrefix = "app_predict_iter_";
-
     DIR* dirp = opendir(c_strRootDir.c_str());
     dirent* dp;
     while ((dp = readdir(dirp)) != NULL) {
@@ -61,28 +59,16 @@ void sarah_train(){
   vector<string> vecSolverStates;
   bool bRestore = false;
   caffe::SolverParameter solver_param;
-  string ini_dir = "sarah_setting.config";
-  unordered_map<std::string, std::string> config;
-  fstream fin;
-  fin.open(ini_dir, std::ios::in);
-  string line;
-  while (getline(fin, line)){
-    istringstream iss(line);
-    string key;
-    string value;
-    if (iss >> key >> value){
-      config.insert(pair<string, string>(key, value));
-    }
-  }
-
-  caffe::ReadSolverParamsFromTextFileOrDie(config.at("ROOT_DIR").c_str() + config.at("SOLVER_PROTOTXT"), &solver_param);
-  string ckpt_path = config.at("ROOT_DIR") + config.at("CKPT_FOLDER");
+  unordered_map<string, string> config = get_config();
+  caffe::ReadSolverParamsFromTextFileOrDie(config.at("ROOT_DIR") + config.at("SOLVER_PROTOTXT_NAME"), &solver_param);
+  string ckpt_path = config.at("ROOT_DIR") + config.at("CKPT_DIR");
+  if (!boost::filesystem::exists(ckpt_path)){
     boost::filesystem::create_directory(ckpt_path);
-  
+  }
   getSolverStates(vecSolverStates);
   if (vecSolverStates.size() > 0){
     bRestore = true;
-    LOGE("found the latest solver state %s", vecSolverStates[0].c_str());
+    // LOGI("found the latest solver state %s", vecSolverStates[0].c_str());
     if (vecSolverStates.size() > 1){
       delSolverStates(1, vecSolverStates);
     }

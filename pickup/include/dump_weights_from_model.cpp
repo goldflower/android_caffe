@@ -12,46 +12,36 @@
 #include <caffe/caffe.hpp>
 #include <chrono>
 #include <unordered_map>
-//#include "../params.h"
+#include "pickup.h"
+//#include <boost/filesystem.hpp>
+#define BOOST_NO_CXX11_SCOPED_ENUMS
+#include <boost/filesystem.hpp>
+#undef BOOST_NO_CXX11_SCOPED_ENUMS
 using namespace caffe;
 using namespace std;
 using namespace std::chrono;
 //static const string root_dir = "/data/test_sql/";
-void dump_weights_from_model() {
-  std::unordered_map<std::string, std::string> config;
-  std::fstream fin;
-//  cout << "try to open ../ini/sarah_setting.ini" << endl;
-  fin.open("sarah_setting.config", std::ios::in);
-//  cout << "ok" << endl;
-  std::string line;
-  while (std::getline(fin, line)){
-    std::istringstream iss(line);
-    std::string key;
-    std::string value;
-    if (iss >> key >> value){
-      config.insert(std::pair<std::string, std::string>(key, value));
-    }
-  }
+void dump_weights_from_model(string target_model) {
+  unordered_map<string, string> config = get_config();
 
   Caffe::set_mode(Caffe::CPU);
-  
   //Net<float> fc(argv[1], caffe::TEST);
-  Net<float> fc(config.at("TRAIN_PROTOTXT_PATH"), caffe::TRAIN);
+  Net<float> fc(config.at("ROOT_DIR") + config.at("TRAIN_PROTOTXT_NAME"), caffe::TRAIN);
 //  cout << "ok2" << endl;
   //fc.CopyTrainedLayersFrom(argv[2]);
   string num = config.at("MAX_ITER");
   while (num.length() < 8){
     num = "0" + num;
   }
-  cout << "trying to load " << config.at("CKPT_PREFIX") + num + "_loss_inf_.caffemodel" << endl;
-  fc.CopyTrainedLayersFrom(config.at("CKPT_FOLDER") + config.at("CKPT_PREFIX") + "_iter_" + num + "_loss_inf_.caffemodel");
+  cout << "trying to load " << target_model << endl;
+  fc.CopyTrainedLayersFrom(target_model);
   cout << "load succesfully" << endl;
   vector<Blob<float>*> blobs = fc.learnable_params();
   //string weight_file_name = argv[3]; 
-  milliseconds ms = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
-  string weight_file_name = config.at("WB_PREFIX");
+  seconds secs = duration_cast<seconds>(system_clock::now().time_since_epoch());
+  string weight_file_name = config.at("ROOT_DIR") + config.at("WB_PREFIX");
   ofstream f(weight_file_name);
-  f << "version=" << ms.count() << "\n";
+  f << "version=" << secs.count() << "\n";
   f << "axis='xyzxgygzg'\n2\n84 120 1 84\n";
   for (int i = 0; i < blobs.size(); i++){
     string shape_info = blobs[i]->shape_string();
@@ -65,25 +55,18 @@ void dump_weights_from_model() {
            f << data[j * shape_info_vec[1] + k] << " ";
            //cout << data[j * shape_info_vec[1] + k] << " ";
 	}
-	f << "\n";
-	
+	f << "\n";	
     }
-    
-//    cout << data[0] << endl;
-//    cout << shape_info << endl;
   }
+  f.close();  
+  ifstream infile(weight_file_name);
+  ofstream outfile("/mnt/vendor/persist/sensors/pickup_nn_wb.txt");
+  outfile << infile.rdbuf();
+  infile.close();
+  outfile.close();
   /*
-  cout << blobs.size() << " " << endl;
-  string shape_info = blobs[0]->shape_string();
-  cout << shape_info << endl;
-  
-  for (int i = 0; i < blobs.size(); i++){
-    Blob<type>* blob = blobs[i];
-    for (int j = 0; j < blobs[i].size(); j++){
-      cout << blobs[i][j] << " ";
-    }
-    cout << endl;
-  }
+  ofstream out2("/data/training/sarah/TRAIN_SUCCESS");
+  out2.close();
   */
   return;
 }
